@@ -6,9 +6,11 @@ import sklearn
 from sklearn.model_selection import RandomizedSearchCV
 import seaborn as sns
 import shap
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.inspection import permutation_importance
+from sklearn.metrics import check_scoring
+
 
 # saving models
 import joblib
@@ -22,8 +24,9 @@ from typing import TypeAlias
 # Type Aliases for clarity
 HyperParameterValue: TypeAlias = list | tuple | rv_discrete_frozen | rv_continuous_frozen
 
+
 class ModelTuner():
-    def __init__(self, model, filename: str, predictor: str, featureNames: list[str], **kwargs):
+    def __init__(self, model, split:tuple, featureNames: list[str], **kwargs):
         """
         model: the instance of the sklearn api model that will be tuned
         filename: literal string of relative path
@@ -41,31 +44,13 @@ class ModelTuner():
 
         self._predicting = False
         
-        self._max_visable_features = kwargs["max_visable_features"] if "max_viable_features" in kwargs else 6
+        self._max_visable_features = kwargs["max_visable_features"] if "max_visable_features" in kwargs else 6
         self._cv = kwargs["cv"] if "cv" in kwargs else None
 
 
         self._model = model
-
-        test_size = kwargs["test_size"] if "test_size" in kwargs else 0.2
-        self.df = pd.read_csv(filename)
-        self._predictor = predictor
         self._featureNames = featureNames
-        
-        # format dataframe
-        X = self.df.copy()
-        self.Y = X[self._predictor]
-        self.X = X.drop([self._predictor], axis=1)
-
-        # Split into train and hold-out test
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.Y, test_size=test_size, random_state=self.random_state, stratify=self.Y)
-
-    def get_predictors(self):
-        return self._predictor
-    def set_predictors(self, newPredictor: str):
-        if self._predicting:
-            raise Exception("Tuner can no longer change features once the test set has been looked at\nPlease make new tuner with a new random state")
-        self._predictor = newPredictor
+        self.X_train, self.X_test, self.y_train, self.y_test = split
         
     def get_features(self):
         return self._featureNames
@@ -113,7 +98,7 @@ class ModelTuner():
 
         return search
 
-    def display_parameter_fits(self, search, hyperParameterGrid: dict[str, HyperParameterValue], groupby: str | None = None, **kwargs):
+    def display_parameter_fits(self, search, hyperParameterGrid: dict[str, HyperParameterValue], groupby: str | None = None, exclude: list[str] | None = None, **kwargs):
         
         searchResults = pd.DataFrame(search.cv_results_)
 
@@ -141,7 +126,14 @@ class ModelTuner():
             is_log_scale = kwargs.get('log_scale', False)
 
             for i, t in enumerate(hyperParameterGrid.items()):
+                
+
                 parameter, value = t
+                if exclude is not None:
+                    if parameter in exclude:
+                        print(f"parameter: {parameter} excluded")
+                        continue
+
                 ax = fig.add_subplot(gs[i//3, i%3])
                 
                 group_param = "param_" + groupby
@@ -226,21 +218,50 @@ class ModelTuner():
         plt.title(f"Fits with Features:\n[{features_str}]")
         plt.show()
 
-    def feature_permutation(self, params):
+    def get_alternative_cv_score(self, scoring, **kwargs):
+        """
+        Evaluate the best estimator from the last search on a different scoring metric 
+        using cross-validation on the training data.
+        """
+        if self.last_search is None:
+            raise Exception("No search history found. Please run `tune_model` before calling this method.")
+            
+        
+        # Pull the best configured estimator from your previous hyperparameter search
+        best_model = self.last_search.best_estimator_
+        cv_folds = self._cv
+        n_jobs = kwargs.get("n_jobs", 1)
+        
+        # Calculate CV scores across the training split with the new metric
+        scores = cross_val_score(
+            best_model, 
+            self.X_train[self._featureNames], 
+            self.y_train, 
+            scoring=scoring, 
+            cv=cv_folds,
+            n_jobs=n_jobs
+        )
+        
+        mean_score = scores.mean()
+        print(f"|I| Alternative CV Score ({scoring}): {mean_score} (std: {scores.std():.4f})")
+        
+        return scores
+
+    def feature_permutation(self, params, **kwargs):
         
         params = params.copy()
-    
+        scoring = kwargs.get("scoring", "accuracy")
         # update model
         instantiatedModel = self._model.set_params(**params)
         instantiatedModel.fit(self.X_train[self._featureNames], self.y_train)
 
         result = permutation_importance(
-            self._model, self.X_test[self._featureNames], self.y_test, n_repeats=10, scoring='accuracy', random_state=self.random_state, n_jobs=1
+            self._model, self.X_test[self._featureNames], self.y_test, n_repeats=10, scoring=scoring, random_state=self.random_state, n_jobs=1
         )
         
         print("\n\nFeature Permutation Importance\n______________________")
         for i in result.importances_mean.argsort()[::-1]:
-            print(f"{self.X[self._featureNames].columns[i]}: {result.importances_mean[i]:.3f} +/- {result.importances_std[i]:.3f}")
+            print(f"{self.X_test[self._featureNames].columns[i]}: {result.importances_mean[i]:.3f} +/- {result.importances_std[i]:.3f}")
         print("\n______________________")
 
     def shap_analysis(self, params: dict, model_type: str = "tree"):
@@ -299,7 +320,10 @@ class ModelTuner():
             plt.gcf().tight_layout()
             plt.show()
 
-    def predict_test_split(self, test_Params):
+    def predict_test_split(self, test_Params, **kwargs):
+        scoring = kwargs.get("scoring", ["accuracy"])
+        scorer = check_scoring(self._model, scoring)
+
         if self._predicting:
             raise Exception("Tuner has already predicted on the test set")
 
@@ -307,22 +331,24 @@ class ModelTuner():
         
         instantiatedModel = self._model.set_params(**test_Params)
         instantiatedModel.fit(self.X_train[self._featureNames], self.y_train)
-        score = instantiatedModel.score(self.X_test[self._featureNames], self.y_test)
+
+        score = scorer(self._model, self.X_test[self._featureNames], self.y_test)
 
         self.saved_params = test_Params
         self.saved_score = score
 
         return score
+    
 
-    def save_model(self, filename:str, hyperparams: dict, final:bool = False, notes:str=""):
+    def save_model(self, filename:str, hyperparams: dict, final:bool = False, notes:str="", predictor:str = ""):
         """
         filename: the base filename without an extension
         final: If it is the final save for a model (will be trained with all data)
         """
 
         if final:
-            trainingData = self.X[self._featureNames]
-            predictors = self.Y
+            trainingData = pd.concat([self.X_train[self._featureNames], self.X_test[self._featureNames]], ignore_index=True)
+            predictors = pd.concat([self.y_train, self.y_test], ignore_index=True)
             try:
                 score = self.predict_test_split(hyperparams)
             except:
@@ -339,7 +365,7 @@ class ModelTuner():
 
         metadataDict = {
             "features": self._featureNames, 
-            "predictors":self._predictor,
+            "predictors":predictor,
             "type": type(self._model),
             "notes": notes,
             "datatime": datetime.datetime.now(),
@@ -352,8 +378,8 @@ class ModelTuner():
 
 
 class PipelineTuner(ModelTuner):
-    def __init__(self, pipeline: Pipeline, filename: str, predictor: str, featureNames: list[str], **kwargs):
-        super().__init__(pipeline, filename, predictor, featureNames, **kwargs)
+    def __init__(self, pipeline: Pipeline, split: tuple, featureNames: list[str], **kwargs):
+        super().__init__(pipeline, split= split, featureNames=featureNames, **kwargs)
 
     def shap_analysis(self, params: dict[str, HyperParameterValue], model_type: str = "tree"):
         
@@ -374,6 +400,8 @@ class PipelineTuner(ModelTuner):
 
         # 5. Extract only the fitted classifier step
         classifier = self._model.named_steps['classifier']
+        
+        print("\n\n\nclassifier: ",classifier,"\n\n\n")
 
         # 6. Match case to determine the SHAP explainer type
         match model_type.lower().strip():
