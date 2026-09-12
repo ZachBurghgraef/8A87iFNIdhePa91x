@@ -1,7 +1,7 @@
 # Project Overview
 
 * **Project Objective**: To provide a new method to find and target clients that are likely to participate in this company's term deposit opportunities.
-* **Core Achievement**: Developed a `RandomForestClassifier` achieving a **ROC AUC of 0.932** and an **Accuracy of 0.924** on the unseen test set, backed by a Streamlit interactive tool that allows for a choice between a model optimized for call conversion efficiency (saving labor costs) and for maximum number of conversions achieved (no shortage of labor).
+* **Core Achievement**: Developed a `RandomForestClassifier` achieving a **ROC AUC of 0.932** and an **Accuracy of 0.85** on the unseen test set, backed by a Streamlit interactive tool that allows for a choice between a model optimized for call conversion efficiency (saving labor costs) and for maximum number of conversions achieved (no shortage of labor).
 * **Business Value**: Provides a seamless and instant transition between models that maximize efficiency or pure conversion, making the sales process yield greater conversion rates while lowering net calls made.
 
 ---
@@ -91,12 +91,17 @@ The execution pipeline includes a clean, decoupled architecture split across thr
 
 
 
-| Model | Final Test Set ROC AUC | Final Test Set Accuracy | CV ROC AUC Score | CV Accuracy Score | Features Excluded | Preprocessing Methods |
-|---|---|---|---|---|---|---|
-| **Random Forest** | **0.9324** | **0.9241** | $0.9378$ | Not Completed | None | Dropped missing rows |
+| Model | Final Test Set ROC AUC | Final Test Set Accuracy | CV ROC AUC Score | Features Excluded | Preprocessing Methods |
+|---|---|---|---|---|---|
+| **Random Forest with ROC AUC Optimized Threshold (Maximum Conversion)** | **0.9324** | **0.85** | $0.9378$ | None | Dropped missing rows |
+| **Random Forest with F1 Optimized Threshold (Maximum Efficiency)** | **0.9324** | **0.91** | $0.9378$ | None | Dropped missing rows |
 
+![ROC AUC Optimized Threshold Random Forest Classifier Confusion Matrix](../figures/ROC_confusion_matrix.png)
+![F1 Score Optimized Threshold Random Forest Classifier confusion Matrix](../figures/F1_confusion_matrix.png)
 
 ![Random_Forest_Tuning_Profile](../figures/tuning_profile.png)
+
+
 
 ## Technical Metric Justification: ROC AUC vs. Raw Accuracy
 
@@ -109,7 +114,7 @@ During the hyperparameter tuning phase, **ROC AUC was selected as the foundation
 
 ## Key Analytical Findings
 * **Dual-Threshold Optimization**: The `RandomForestClassifier` provided the highest validation stability. It serves as the framework for generating distinct probability thresholds to toggle operations between call efficiency and total conversions.
-* **Imbalance Distortion**: While Accuracy scores look superficially high ($\sim 92.4\%$), they sit close to the baseline zero-conversion rate ($\sim 92.76\%$). This underscores why ROC AUC ($0.9324$) serves as our true north star for evaluating actual model separation performance.
+* **Imbalance Distortion**: While Accuracy scores look superficially high ($\sim 0.85\%$ and $\sim 0.91\%$), they sit close to the baseline zero-conversion rate ($\sim 92.76\%$). This underscores why ROC AUC ($0.9324$) serves as our true north star for evaluating actual model separation performance.
 * **Feature Permutation Rankings**:
   * Model performance degradation tests confirm that `duration` is the singular dominant predictor, yielding a score penalty of **0.297**. 
   * Macro operational windows follow, with `month` scoring **0.091** and calendar positioning (`day`) scoring **0.024**.

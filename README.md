@@ -2,7 +2,6 @@
 
 This repository houses an end-to-end predictive pipeline designed to identify, rank, and target bank clients with the highest propensity to subscribe to term deposit opportunities. By transitioning from traditional cold calling to an intelligent, automated thresholding engine, this pipeline maximizes sales conversions while slashing unnecessary agent talk time.
 
-[![Streamlit App](https://streamlit.io)](https://streamlit.app)
 
 > 🌐 **Live App:** Run the deployment dashboard live at [Term Deposit Conversion Intelligence App](https://streamlit.app)
 >
@@ -11,14 +10,13 @@ This repository houses an end-to-end predictive pipeline designed to identify, r
 ---
 
 ## 🖥️ Application Preview
-
 ![Predictive Dialer Streamlit Dashboard](reports/figures/app_preview.png)
 
 ---
 
 ## ✨ Key Features
 
-* **High-Separation Modeling:** `RandomForestClassifier` optimized to conquer extreme class imbalance (7.24% positive base rate), achieving a **0.932 ROC AUC** and **0.924 Accuracy** on holdout validation data.
+* **High-Separation Modeling:** `RandomForestClassifier` optimized to conquer extreme class imbalance (7.24% positive base rate), achieving a **0.932 ROC AUC**, **0.85 Max Conversion Accuracy**, and **0.91 Max Efficiency Accuracy** on holdout validation data.
 * **Decoupled Architecture:** Cleanly isolated modular codebase splitting data ingestion (`load_data.py`), model screening (`tune_hyperparameters.py`), and post-processing threshold adjustments (`tune_thresholds.py`).
 * **Calibrated Decision Boundaries:** Powered by scikit-learn's `TunedThresholdClassifierCV` to programmatically optimize target execution thresholds over cross-validation splits.
 * **Dual-Mode Business Dashboard:** An interactive Streamlit application enabling floor managers to instantly toggle the active model strategy based on call center capacity constraints:
