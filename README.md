@@ -3,7 +3,7 @@
 This repository houses an end-to-end predictive pipeline designed to identify, rank, and target bank clients with the highest propensity to subscribe to term deposit opportunities. By transitioning from traditional cold calling to an intelligent, automated thresholding engine, this pipeline maximizes sales conversions while slashing unnecessary agent talk time.
 
 
-> 🌐 **Live App:** Run the deployment dashboard live at [Term Deposit Conversion Intelligence App](https://streamlit.app)
+> 🌐 **Live App:** Run the deployment dashboard live at [Term Deposit Conversion Intelligence App](https://8a87ifnidhepa91x-fsetgxt92g7kstcxbymqpz.streamlit.app/)
 >
 > 📄 **Looking for a deep dive?** Read the detailed [Project Overview](reports/summary/project_overview.md) for complete structural EDA findings, technical ROC AUC tuning justifications, and business-focused strategic recommendations.
 
